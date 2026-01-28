@@ -1,0 +1,8 @@
+streamlit
+feedparser
+pandas
+anthropic
+textblob
+python-dotenv
+openpyxl
+beautifulsoup4
