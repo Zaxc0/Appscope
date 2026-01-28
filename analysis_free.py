@@ -470,177 +470,157 @@ def analyze_outcomes(df):
 
 
 def run_free_analysis(df):
-    """Main function to run all free analysis and display results"""
+    """Main function to run all free analysis and display results - Improved UI"""
     
     # Add sentiment column
     df['text_sentiment'] = df['review'].apply(get_sentiment)
     
-    # === SENTIMENT OVERVIEW ===
-    st.markdown("### 📊 Sentiment Overview")
-    sentiment_counts = df['text_sentiment'].value_counts()
-    
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("😊 Positive Sentiment", sentiment_counts.get('positive', 0))
-    with col2:
-        st.metric("😐 Neutral Sentiment", sentiment_counts.get('neutral', 0))
-    with col3:
-        st.metric("😞 Negative Sentiment", sentiment_counts.get('negative', 0))
-    
-    st.markdown("---")
-    
-    # === COMPLAINTS & PRAISE ===
+    # Run all analyses upfront
     complaint_analysis, praise_analysis = analyze_complaints_and_praise(df)
     
-    # Display complaints
-    st.markdown("### 😞 Top Complaints")
-    st.caption("Most frequent issues mentioned in negative reviews")
-    
-    sorted_complaints = sorted(complaint_analysis.items(), key=lambda x: x[1]['total_count'], reverse=True)
-    
-    if len(sorted_complaints) > 0:
-        for idx, (category, data) in enumerate(sorted_complaints[:6]):
-            with st.expander(
-                f"**{category}** — {data['total_count']} mentions ({data['percentage']:.0f}% of negative reviews)",
-                expanded=(idx==0)
-            ):
-                # Show specific themes
-                for theme in data['themes']:
-                    st.markdown(f"**{theme['name'].capitalize()}** ({theme['count']} mentions)")
-                    for example in theme['examples']:
-                        st.markdown(f"> {example}")
-                    st.markdown("")  # Spacing
-    else:
-        st.info("Not enough negative reviews to analyze")
-    
-    st.markdown("---")
-    
-    # Display praise
-    st.markdown("### 😊 What Users Love")
-    st.caption("Most praised aspects in positive reviews")
-    
-    sorted_praise = sorted(praise_analysis.items(), key=lambda x: x[1]['total_count'], reverse=True)
-    
-    if len(sorted_praise) > 0:
-        for idx, (category, data) in enumerate(sorted_praise[:6]):
-            with st.expander(
-                f"**{category}** — {data['total_count']} mentions ({data['percentage']:.0f}% of positive reviews)",
-                expanded=(idx==0)
-            ):
-                # Show specific themes
-                for theme in data['themes']:
-                    st.markdown(f"**{theme['name'].capitalize()}** ({theme['count']} mentions)")
-                    for example in theme['examples']:
-                        st.markdown(f"> {example}")
-                    st.markdown("")
-    else:
-        st.info("Not enough positive reviews to analyze")
-    
-    st.markdown("---")
-    
-    # === JOBS TO BE DONE ===
-    st.markdown("### 🎯 Jobs to Be Done")
-    st.caption("Extracted from user reviews - what progress are users trying to make?")
-    
-    positive_reviews = df[df['rating'] >= 4]['review'].dropna()
-    jtbd_statements = extract_jtbds_from_reviews(positive_reviews, limit=100)
-    
-    if len(jtbd_statements) > 0:
-        st.markdown(f"**Found {len(jtbd_statements)} clear job statements:**")
-        st.markdown("")
-        
-        for idx, jtbd in enumerate(jtbd_statements, 1):
-            st.markdown(f"**{idx}.** {jtbd['statement']}")
-            st.markdown("")
-    else:
-        st.info("No clear job statements found. Users may not be explicitly describing their use cases in reviews.")
-    
-    st.markdown("---")
-    
-    # === FORCES OF PROGRESS ===
-    st.markdown("### ⚡ Forces of Progress")
-    st.caption("What drives users toward or away from this app?")
-    
-    forces_analysis = analyze_forces_of_progress(df)
-    
-    force_order = ['push', 'pull', 'anxiety', 'habit']
-    for force in force_order:
-        if force in forces_analysis:
-            data = forces_analysis[force]
-            with st.expander(
-                f"**{data['label']}** — {data['insight']}",
-                expanded=(force in ['push', 'pull'])
-            ):
-                st.markdown("**Examples:**")
-                for idx, scenario in enumerate(data['scenarios'], 1):
-                    st.markdown(f"{idx}. {scenario}")
-                    st.markdown("")
-    
-    st.markdown("---")
-    
-    # === PAIN POINTS & WINS ===
-    st.markdown("### 🎯 Top Pain Points & Wins")
-    st.caption("What users complain about vs. what they love")
-    
-    pain_points, wins = analyze_outcomes(df)
-    
-    # Display pain points
-    if len(pain_points) > 0:
-        st.markdown("#### ❌ Top Pain Points")
-        sorted_pains = sorted(pain_points.items(), key=lambda x: x[1]['count'], reverse=True)
-        
-        for idx, (pain, data) in enumerate(sorted_pains[:5], 1):
-            with st.expander(
-                f"**{idx}. {pain}** — {data['count']} mentions ({data['percentage']:.0f}% of negative reviews)",
-                expanded=(idx<=2)
-            ):
-                for example in data['examples']:
-                    st.markdown(f"> {example}")
-                    st.markdown("")
-    
-    st.markdown("---")
-    
-    # Display wins
-    if len(wins) > 0:
-        st.markdown("#### ✅ Top Wins")
-        sorted_wins = sorted(wins.items(), key=lambda x: x[1]['count'], reverse=True)
-        
-        for idx, (win, data) in enumerate(sorted_wins[:5], 1):
-            with st.expander(
-                f"**{idx}. {win}** — {data['count']} mentions ({data['percentage']:.0f}% of positive reviews)",
-                expanded=(idx<=2)
-            ):
-                for example in data['examples']:
-                    st.markdown(f"> {example}")
-                    st.markdown("")
-    
-    st.markdown("---")
-    
-    # === KEY INSIGHTS ===
-    st.markdown("### 💡 Key Insights")
+    # === EXECUTIVE SUMMARY (Key Insights at Top) ===
+    st.markdown("## 💡 Executive Summary")
+    st.caption("Your most important insights at a glance")
     
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("**⚠️ #1 Risk**")
-        
-        # Get most specific complaint
+        st.markdown("**#1 Risk**")
         sorted_complaints = sorted(complaint_analysis.items(), key=lambda x: x[1]['total_count'], reverse=True)
         if len(sorted_complaints) > 0 and sorted_complaints[0][1]['themes']:
-            top_complaint_category = sorted_complaints[0][0]
             top_theme = sorted_complaints[0][1]['themes'][0]
-            st.warning(f"**{top_theme['name'].capitalize()}**\n\n{top_theme['count']} mentions in negative reviews\n\nExample: \"{top_theme['examples'][0][:100]}...\"")
+            st.warning(f"**{top_theme['name'].capitalize()}**\n\n{top_theme['count']} mentions\n\n*\"{top_theme['examples'][0][:80]}...\"*")
         else:
             st.info("Not enough data")
     
     with col2:
-        st.markdown("**✨ #1 Strength**")
-        
-        # Get most specific praise
+        st.markdown("**#1 Strength**")
         sorted_praise = sorted(praise_analysis.items(), key=lambda x: x[1]['total_count'], reverse=True)
         if len(sorted_praise) > 0 and sorted_praise[0][1]['themes']:
-            top_praise_category = sorted_praise[0][0]
             top_theme = sorted_praise[0][1]['themes'][0]
-            st.success(f"**{top_theme['name'].capitalize()}**\n\n{top_theme['count']} mentions in positive reviews\n\nExample: \"{top_theme['examples'][0][:100]}...\"")
+            st.success(f"**{top_theme['name'].capitalize()}**\n\n{top_theme['count']} mentions\n\n*\"{top_theme['examples'][0][:80]}...\"*")
         else:
             st.info("Not enough data")
+    
+    st.markdown("---")
+    
+    # === TABBED DEEP DIVE ===
+    st.markdown("## 📊 Detailed Analysis")
+    
+    tab1, tab2, tab3, tab4 = st.tabs(["Complaints", "Praise", "Jobs to Be Done", "Forces"])
+    
+    # TAB 1: COMPLAINTS
+    with tab1:
+        st.caption("Specific issues mentioned in negative reviews")
+        
+        sorted_complaints = sorted(complaint_analysis.items(), key=lambda x: x[1]['total_count'], reverse=True)
+        
+        if len(sorted_complaints) > 0:
+            for idx, (category, data) in enumerate(sorted_complaints[:6]):
+                with st.expander(
+                    f"{category} ({data['total_count']})",
+                    expanded=(idx==0)
+                ):
+                    st.caption(f"{data['percentage']:.0f}% of negative reviews")
+                    
+                    for theme in data['themes']:
+                        st.markdown(f"**{theme['name'].capitalize()}** — {theme['count']} mentions")
+                        for example in theme['examples']:
+                            st.markdown(f"> {example}")
+                        st.markdown("")
+        else:
+            st.info("Not enough negative reviews to analyze")
+    
+    # TAB 2: PRAISE
+    with tab2:
+        st.caption("Most praised aspects in positive reviews")
+        
+        sorted_praise = sorted(praise_analysis.items(), key=lambda x: x[1]['total_count'], reverse=True)
+        
+        if len(sorted_praise) > 0:
+            for idx, (category, data) in enumerate(sorted_praise[:6]):
+                with st.expander(
+                    f"{category} ({data['total_count']})",
+                    expanded=(idx==0)
+                ):
+                    st.caption(f"{data['percentage']:.0f}% of positive reviews")
+                    
+                    for theme in data['themes']:
+                        st.markdown(f"**{theme['name'].capitalize()}** — {theme['count']} mentions")
+                        for example in theme['examples']:
+                            st.markdown(f"> {example}")
+                        st.markdown("")
+        else:
+            st.info("Not enough positive reviews to analyze")
+    
+    # TAB 3: JOBS TO BE DONE
+    with tab3:
+        st.caption("What progress are users trying to make?")
+        
+        positive_reviews = df[df['rating'] >= 4]['review'].dropna()
+        jtbd_statements = extract_jtbds_from_reviews(positive_reviews, limit=100)
+        
+        if len(jtbd_statements) > 0:
+            st.markdown(f"**Found {len(jtbd_statements)} clear job statements:**")
+            st.markdown("")
+            
+            for idx, jtbd in enumerate(jtbd_statements, 1):
+                st.markdown(f"**{idx}.** {jtbd['statement']}")
+                st.markdown("")
+        else:
+            st.info("No clear job statements found. Users may not be explicitly describing their use cases.")
+    
+    # TAB 4: FORCES OF PROGRESS
+    with tab4:
+        st.caption("What drives users toward or away from this app")
+        
+        forces_analysis = analyze_forces_of_progress(df)
+        
+        force_order = ['push', 'pull', 'anxiety', 'habit']
+        for force in force_order:
+            if force in forces_analysis:
+                data = forces_analysis[force]
+                with st.expander(
+                    f"{data['label']} ({data['count']})",
+                    expanded=(force in ['push', 'pull'])
+                ):
+                    st.caption(data['insight'])
+                    for idx, scenario in enumerate(data['scenarios'], 1):
+                        st.markdown(f"{idx}. {scenario}")
+                        st.markdown("")
+    
+    st.markdown("---")
+    
+    # === SAMPLE REVIEWS (Collapsed) ===
+    with st.expander("📝 Sample Reviews", expanded=False):
+        tab_pos, tab_neu, tab_neg = st.tabs(["Positive (4-5★)", "Neutral (3★)", "Negative (1-2★)"])
+        
+        with tab_pos:
+            positive_revs = df[df['rating'] >= 4].head(5)
+            for _, review in positive_revs.iterrows():
+                title = review['title'][:50] if review['title'] else "No title"
+                with st.expander(f"⭐ {review['rating']} - {title}"):
+                    st.markdown(review['review'])
+                    st.caption(f"👤 {review['author']} • 📅 {review['date']} • 📱 v{review['version']}")
+        
+        with tab_neu:
+            neutral_revs = df[df['rating'] == 3].head(5)
+            if len(neutral_revs) > 0:
+                for _, review in neutral_revs.iterrows():
+                    title = review['title'][:50] if review['title'] else "No title"
+                    with st.expander(f"⭐ 3 - {title}"):
+                        st.markdown(review['review'])
+                        st.caption(f"👤 {review['author']} • 📅 {review['date']} • 📱 v{review['version']}")
+            else:
+                st.info("No neutral reviews found")
+        
+        with tab_neg:
+            negative_revs = df[df['rating'] <= 2].head(5)
+            if len(negative_revs) > 0:
+                for _, review in negative_revs.iterrows():
+                    title = review['title'][:50] if review['title'] else "No title"
+                    with st.expander(f"⭐ {review['rating']} - {title}"):
+                        st.markdown(review['review'])
+                        st.caption(f"👤 {review['author']} • 📅 {review['date']} • 📱 v{review['version']}")
+            else:
+                st.info("No negative reviews found")

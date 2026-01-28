@@ -1,13 +1,38 @@
 import streamlit as st
 import os
 from dotenv import load_dotenv
+import plotly.graph_objects as go
 
 from utils import extract_app_id
-from scraper import scrape_app_reviews
+from scraper import scrape_app_reviews, get_app_metadata
 from analysis_free import run_free_analysis
 
 # Load environment variables
 load_dotenv()
+
+# === DESIGN SYSTEM ===
+COLORS = {
+    'primary': '#2563EB',
+    'primary_dark': '#1D4ED8',
+    'success': '#059669',
+    'warning': '#D97706',
+    'danger': '#DC2626',
+    'neutral_50': '#F9FAFB',
+    'neutral_100': '#F3F4F6',
+    'neutral_200': '#E5E7EB',
+    'neutral_500': '#6B7280',
+    'neutral_700': '#374151',
+    'neutral_900': '#111827',
+}
+
+SPACING = {
+    'xs': '0.25rem',
+    'sm': '0.5rem',
+    'md': '1rem',
+    'lg': '1.5rem',
+    'xl': '2rem',
+    'xxl': '3rem',
+}
 
 # Page config
 st.set_page_config(
@@ -17,41 +42,79 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS
-st.markdown("""
+# Professional CSS Theme  
+st.markdown(f"""
 <style>
-    .main-header {
-        font-size: 3rem;
+    /* Light main background */
+    .main .block-container {{
+        background: {COLORS['neutral_50']};
+    }}
+    
+    /* Keep sidebar dark - just ensure text is visible */
+    [data-testid="stSidebar"] {{
+        background-color: #1E293B;
+    }}
+    [data-testid="stSidebar"] .stMarkdown, 
+    [data-testid="stSidebar"] label,
+    [data-testid="stSidebar"] p {{
+        color: #E5E7EB !important;
+    }}
+    [data-testid="stSidebar"] h1, 
+    [data-testid="stSidebar"] h2, 
+    [data-testid="stSidebar"] h3,
+    [data-testid="stSidebar"] h4 {{
+        color: white !important;
+    }}
+    
+    /* Main content text */
+    .main .main-header {{
+        font-size: 2.5rem;
         font-weight: 700;
-        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
+        color: #111827 !important;
         margin-bottom: 0.5rem;
-    }
-    .subtitle {
-        font-size: 1.2rem;
-        color: #999;
+    }}
+    .main .subtitle {{
+        font-size: 1.1rem;
+        color: #374151 !important;
         margin-bottom: 2rem;
-    }
-    .metric-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 1.5rem;
-        border-radius: 10px;
-        color: white;
-        text-align: center;
-    }
-    .stButton>button {
-        width: 100%;
-        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        padding: 0.75rem 2rem;
-        border-radius: 5px;
+    }}
+    
+    /* Metrics - dark text on light background */
+    .main [data-testid="stMetricValue"] {{
+        color: #111827 !important;
+        font-size: 2rem !important;
+        font-weight: 700 !important;
+    }}
+    .main [data-testid="stMetricLabel"] {{
+        color: #374151 !important;
+        font-weight: 500 !important;
+    }}
+    
+    /* All headers in main */
+    .main h1, .main h2, .main h3, .main h4, .main h5 {{
+        color: #111827 !important;
+    }}
+    
+    /* Button styling */
+    .stButton > button {{
+        background: {COLORS['primary']} !important;
+        color: white !important;
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
         font-weight: 600;
-    }
-    .stButton>button:hover {
-        background: linear-gradient(90deg, #764ba2 0%, #667eea 100%);
-    }
+        border: none;
+    }}
+    .stButton > button:hover {{
+        background: {COLORS['primary_dark']} !important;
+    }}
+    
+    /* Tabs */
+    .main .stTabs [data-baseweb="tab"] {{
+        color: #374151 !important;
+    }}
+    .main .stTabs [data-baseweb="tab"][aria-selected="true"] {{
+        color: {COLORS['primary']} !important;
+    }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -156,6 +219,8 @@ if analyze_btn or app_url:
             status_text.text(status)
         
         with st.spinner("🔄 Scraping reviews..."):
+            # Get overall app metadata first
+            app_metadata = get_app_metadata(app_id)
             df = scrape_app_reviews(app_id, max_pages=10, progress_callback=progress_callback)
         
         progress_bar.progress(100)
@@ -165,9 +230,10 @@ if analyze_btn or app_url:
             st.error("❌ No reviews found.")
         else:
             st.session_state['reviews_df'] = df
+            st.session_state['app_metadata'] = app_metadata
             st.session_state['analyses_run'] += 1
             
-            st.success(f"✅ Successfully analyzed **{len(df)}** reviews!")
+            st.success(f"✅ Successfully analyzed **{len(df)}** recent reviews!")
             
             # Quick Stats
             st.markdown("### 📊 Quick Stats")
@@ -175,46 +241,66 @@ if analyze_btn or app_url:
             col1, col2, col3, col4 = st.columns(4)
             
             with col1:
-                st.markdown(f"""
-                <div class="metric-card">
-                    <h3>{len(df)}</h3>
-                    <p>Total Reviews</p>
-                </div>
-                """, unsafe_allow_html=True)
+                # Show total reviews from App Store, not just scraped
+                total = app_metadata.get('total_reviews', 0)
+                if total:
+                    st.metric("Total Reviews", f"{total:,}")
+                    st.caption(f"Analyzed: {len(df):,}")
+                else:
+                    st.metric("Analyzed Reviews", f"{len(df):,}")
             
             with col2:
-                avg_rating = df['rating'].mean()
-                st.markdown(f"""
-                <div class="metric-card">
-                    <h3>{avg_rating:.2f} ⭐</h3>
-                    <p>Average Rating</p>
-                </div>
-                """, unsafe_allow_html=True)
+                # Show overall App Store rating, not average of scraped
+                overall_rating = app_metadata.get('overall_rating')
+                if overall_rating:
+                    st.metric("App Store Rating", f"{overall_rating:.1f} ⭐")
+                    scraped_avg = df['rating'].mean()
+                    st.caption(f"Recent avg: {scraped_avg:.1f}⭐")
+                else:
+                    avg_rating = df['rating'].mean()
+                    st.metric("Average Rating", f"{avg_rating:.1f} ⭐")
             
             with col3:
                 positive_pct = (df['rating'] >= 4).sum() / len(df) * 100
-                st.markdown(f"""
-                <div class="metric-card">
-                    <h3>{positive_pct:.0f}%</h3>
-                    <p>Positive</p>
-                </div>
-                """, unsafe_allow_html=True)
+                st.metric("Positive", f"{positive_pct:.0f}%")
             
             with col4:
                 negative_pct = (df['rating'] <= 2).sum() / len(df) * 100
-                st.markdown(f"""
-                <div class="metric-card">
-                    <h3>{negative_pct:.0f}%</h3>
-                    <p>Negative</p>
-                </div>
-                """, unsafe_allow_html=True)
+                st.metric("Negative", f"{negative_pct:.0f}%")
             
-            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("")  # Spacing
             
-            # Rating distribution
-            st.markdown("### 📈 Rating Distribution")
-            rating_counts = df['rating'].value_counts().sort_index(ascending=False)
-            st.bar_chart(rating_counts, height=300)
+            # Rating distribution with Plotly
+            st.markdown('<p class="section-header">📈 Rating Distribution</p>', unsafe_allow_html=True)
+            
+            rating_counts = df['rating'].value_counts().sort_index()
+            colors = ['#DC2626', '#F97316', '#EAB308', '#84CC16', '#22C55E']
+            
+            fig = go.Figure(data=[
+                go.Bar(
+                    x=[f"{'⭐' * int(r)}" for r in rating_counts.index],
+                    y=rating_counts.values,
+                    marker_color=[colors[int(r)-1] for r in rating_counts.index],
+                    text=rating_counts.values,
+                    textposition='outside',
+                    hovertemplate='<b>%{x}</b><br>%{y} reviews<extra></extra>'
+                )
+            ])
+            
+            fig.update_layout(
+                title=None,
+                xaxis_title=None,
+                yaxis_title="Number of Reviews",
+                height=350,
+                margin=dict(t=20, b=40, l=60, r=20),
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font=dict(family="Inter, sans-serif", size=12),
+                xaxis=dict(tickfont=dict(size=14)),
+                yaxis=dict(gridcolor='#E5E7EB', gridwidth=1),
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
 
 # Analysis Section
 if 'reviews_df' in st.session_state:
