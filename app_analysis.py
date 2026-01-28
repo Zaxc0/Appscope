@@ -77,19 +77,18 @@ with st.sidebar:
     api_key = None
     
     if analysis_mode == "🤖 AI-Powered":
-        try:
-            api_key = st.secrets["ANTHROPIC_API_KEY"]
-            st.success("✅ API key loaded")
-        except:
-            api_key = os.getenv("ANTHROPIC_API_KEY")
-            if api_key:
-                st.success("✅ API key from environment")
-            else:
-                api_key = st.text_input(
-                    "Anthropic API Key:",
-                    type="password",
-                    help="Get free credits at console.anthropic.com"
-                )
+        st.info("💡 AI analysis requires your Anthropic API key. Get $5 free credits at [console.anthropic.com](https://console.anthropic.com)")
+        
+        api_key = st.text_input(
+            "Enter your Anthropic API Key:",
+            type="password",
+            help="Your API key is only used for this session and never stored. Cost: ~$0.15 per app analysis."
+        )
+        
+        if api_key:
+            st.success("✅ API key ready")
+        else:
+            st.warning("⚠️ Enter your API key above to enable AI analysis")
     
     st.markdown("---")
     st.subheader("📊 Usage Stats")
